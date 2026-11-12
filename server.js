@@ -16,7 +16,7 @@ for (const d of [DATA, THUMBS, SUBS]) fs.mkdirSync(d, { recursive: true });
 
 const config = Object.assign(
   { port: 8787, movies: [], series: [], tmdbKey: '', ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
-  JSON.parse(fs.readFileSync(path.join(BASE, 'config.json'), 'utf8'))
+  JSON.parse(fs.readFileSync(path.join(BASE, 'config.json'), 'utf8').replace(/^﻿/, '')) // il BOM di Windows rompe JSON.parse
 );
 
 // ---------- persistenza ----------
@@ -350,7 +350,8 @@ async function transcode(req, res, fid, t) {
   ff.stderr.on('data', d => { err = (err + d).slice(-500); });
   ff.on('error', e => { console.error('Conversione non avviata:', e.message); res.destroy(); });
   ff.on('close', code => { if (code && !res.destroyed) console.error('Conversione interrotta:', err.trim()); res.end(); });
-  res.on('close', () => ff.kill()); // il client ha chiuso o è saltato altrove
+  // il client ha chiuso o è saltato altrove. SIGKILL: su Linux ffmpeg fermo a scrivere sulla pipe piena ignora SIGTERM e resta acceso
+  res.on('close', () => ff.kill('SIGKILL'));
   ff.stdout.pipe(res);
 }
 
