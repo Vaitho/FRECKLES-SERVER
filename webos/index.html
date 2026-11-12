@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>FrecklesNight</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0d0e13; color: #f3f1ea; font-family: "LG Smart UI", Arial, sans-serif; }
+    body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; text-align: center; }
+    .logo { font-size: 80px; font-weight: 800; color: #ff8a3d; letter-spacing: -1px; }
+    .logo span { color: #f3f1ea; }
+    p { font-size: 26px; color: #a4a3ad; line-height: 1.6; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="logo">Freckles<span>Night</span></div>
+  <p id="msg">Connessione al PC…</p>
+  <script>
+    // Indirizzo del PC che esegue server.js
+    var SERVER = 'http://192.168.1.50:8787';
+    var msg = document.getElementById('msg');
+    var retry;
+    function connect() {
+      clearTimeout(retry);
+      msg.textContent = 'Connessione al PC…';
+      var x = new XMLHttpRequest();
+      x.open('GET', SERVER + '/api/ping');
+      x.timeout = 4000;
+      x.onload = function () { if (x.status === 200) location.replace(SERVER + '/'); else fail(); };
+      x.onerror = x.ontimeout = fail;
+      x.send();
+    }
+    function fail() {
+      msg.innerHTML = 'Il PC non risponde.<br>Accendilo e premi OK per riprovare.';
+      retry = setTimeout(connect, 5000);
+    }
+    document.addEventListener('keydown', function (e) {
+      if (e.keyCode === 13) connect();
+      if (e.keyCode === 461 || e.keyCode === 27) window.close();
+    });
+    connect();
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+﻿{
+    "port":  8787,
+    "movies":  [
+                   "E:\\Film"
+               ],
+    "series":  [
+                   "E:\\SerataTeleFilm"
+               ],
+    "tmdbKey":  "YOUR_TMDB_KEY",
+    "titles":  {
+                   "Th3 3l3ph4nt M4n":  "The Elephant Man"
+               },
+    "ffmpeg":  "C:\\Users\\giamp\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.2-full_build\\bin\\ffmpeg.exe",
+    "ffprobe":  "C:\\Users\\giamp\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.2-full_build\\bin\\ffprobe.exe"
+}
