@@ -19,6 +19,8 @@ const config = Object.assign(
   JSON.parse(fs.readFileSync(path.join(BASE, 'config.json'), 'utf8').replace(/^﻿/, '')) // il BOM di Windows rompe JSON.parse
 );
 
+const downloads = require('./arr')(config);
+
 // ---------- persistenza ----------
 function loadJson(name, fallback) {
   try { return JSON.parse(fs.readFileSync(path.join(DATA, name), 'utf8')); } catch { return fallback; }
@@ -116,6 +118,7 @@ const noExt = f => f.slice(0, -path.extname(f).length);
 let lib = { movies: [], series: [], scannedAt: 0 };
 let fileMap = new Map(); // id -> { path, size, mtime }
 let imgMap = new Map();
+let seriesDirs = new Map(); // id serie -> cartella
 
 async function scan() {
   const files = new Map(), imgs = new Map();
@@ -153,7 +156,7 @@ async function scan() {
   }
 
   // serie: ogni sottocartella è una serie
-  const series = [];
+  const series = [], sdirs = new Map();
   for (const root of config.series) {
     let dirs;
     try { dirs = await fsp.readdir(root, { withFileTypes: true }); } catch { continue; }
@@ -176,6 +179,7 @@ async function scan() {
         se.episodes.push(ep);
       }
       const title = tidy(d.name);
+      sdirs.set(hash('series:' + dir), dir);
       series.push({
         id: hash('series:' + dir), metaKey: 'tv:' + title.toLowerCase(), title, seasons, added,
         poster: img(findImage(['poster', 'folder', 'cover'].map(n => path.join(dir, n)))),
@@ -186,7 +190,38 @@ async function scan() {
   lib = { movies, series, scannedAt: Date.now() };
   fileMap = files;
   imgMap = imgs;
+  seriesDirs = sdirs;
   console.log(`Libreria: ${movies.length} film, ${series.length} serie`);
+}
+
+
+// ---------- eliminazione dal disco ----------
+async function removeItem(id) {
+  const ids = [];
+  if (seriesDirs.has(id)) {
+    const dir = seriesDirs.get(id);
+    if (!config.series.some(r => path.resolve(r) === path.dirname(path.resolve(dir)))) throw new Error('cartella non valida');
+    const s = lib.series.find(x => x.id === id);
+    for (const se of s.seasons) for (const ep of se.episodes) ids.push(ep.id);
+    await fsp.rm(dir, { recursive: true, force: true });
+  } else {
+    const m = lib.movies.find(x => x.id === id);
+    if (!m) throw new Error('titolo sconosciuto');
+    for (const v of m.versions) {
+      const f = fileMap.get(v.id);
+      if (!f) continue;
+      ids.push(v.id);
+      const base = path.basename(noExt(f.path)), dir = path.dirname(f.path);
+      for (const n of await fsp.readdir(dir).catch(() => [])) {
+        if (n === path.basename(f.path) || (n.startsWith(base + '.') && !VIDEO.has(path.extname(n).toLowerCase()))) await fsp.rm(path.join(dir, n), { force: true });
+      }
+      // film in una cartella propria: se non resta nessun video, via anche la cartella
+      if (!config.movies.some(r => path.resolve(r) === path.resolve(dir)) && !(await walk(dir)).length) await fsp.rm(dir, { recursive: true, force: true });
+    }
+  }
+  for (const f of ids) { delete progress[f]; fs.rmSync(thumbPath(f), { force: true }); }
+  save('progress.json');
+  await rescan();
 }
 
 // ---------- ffmpeg: analisi, anteprime, sottotitoli ----------
@@ -553,6 +588,16 @@ const server = http.createServer(async (req, res) => {
       return end(res, 204);
     }
     if (p === '/api/ping') return json(res, { ok: true });
+    if (p.startsWith('/api/dl/')) {
+      const sp = new URL(req.url, 'http://x').searchParams;
+      const kind = sp.get('kind') === 'series' ? 'series' : 'movie';
+      try {
+        if (p === '/api/dl/search') return json(res, await downloads.search((sp.get('q') || '').trim(), kind));
+        if (p === '/api/dl/queue') return json(res, await downloads.queue());
+        if (p === '/api/dl/add' && req.method === 'POST') { const b = await readBody(req); return json(res, await downloads.add(b.kind === 'series' ? 'series' : 'movie', b.key)); }
+      } catch (e) { return json(res, { error: e.message }, 502); }
+      return end(res, 404);
+    }
     if (p === '/api/library') {
       await scanning;
       return json(res, { movies: lib.movies.map(mergeMovie), series: lib.series.map(mergeSeries), scannedAt: lib.scannedAt, enriching, processing: working });
@@ -569,6 +614,10 @@ const server = http.createServer(async (req, res) => {
       }
       save('progress.json');
       return json(res, progress[b.id]);
+    }
+    if (p === '/api/delete' && req.method === 'POST') {
+      const b = await readBody(req);
+      try { await removeItem(String(b.id)); return json(res, { ok: true }); } catch (e) { return json(res, { error: e.message }, 400); }
     }
     if (p === '/api/progress') return json(res, progress);
     if (p === '/api/rescan') { await rescan(); return json(res, { ok: true }); }

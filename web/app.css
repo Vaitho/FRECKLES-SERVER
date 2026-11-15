@@ -76,6 +76,10 @@ h1.title { font-size: 4rem; line-height: 1.05; font-weight: 800; letter-spacing:
 .btn.primary { background: var(--fg); color: #111; }
 .btn.on { background: var(--acc); color: #111; transform: scale(1.06); box-shadow: 0 .6rem 2rem rgba(255,138,61,.35); }
 
+.btn.danger { background: rgba(200,50,50,.35); }
+.btn.danger.armed { background: #c0392b; color: #fff; }
+.btn.danger.on { background: #e74c3c; color: #fff; box-shadow: 0 .6rem 2rem rgba(231,76,60,.4); }
+
 /* ---------- righe di card ---------- */
 .row { margin-top: 1.6rem; position: relative; z-index: 2; }
 .row h2 { font-size: 1.55rem; font-weight: 700; padding: 0 var(--pad); }
@@ -198,3 +202,18 @@ h1.title { font-size: 4rem; line-height: 1.05; font-weight: 800; letter-spacing:
   background: rgba(30,31,40,.96); padding: 1rem 2rem; border-radius: 2rem; font-size: 1.25rem; transition: opacity .25s, transform .25s;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* scheda Scarica */
+.dlbar0 { padding: 0 var(--pad); margin-top: .5rem; }
+.dlinput { flex: 1; min-width: 18rem; max-width: 40rem; font: inherit; font-size: 1.3rem; color: var(--fg); background: rgba(255,255,255,.1); border: 0; outline: 0; border-radius: 2rem; padding: .55rem 1.4rem; transition: transform .15s, background .15s; }
+.dlinput::placeholder { color: var(--mut); }
+.dlinput.on { background: rgba(255,255,255,.24); transform: scale(1.03); box-shadow: 0 0 0 .2rem var(--fg); }
+.dlmsg { padding: 2rem var(--pad); font-size: 1.3rem; color: var(--mut); }
+.splash.small { position: static; height: 12rem; }
+.ok.tagd { width: auto; height: auto; padding: .25rem .7rem; border-radius: 1rem; font-size: .95rem; right: .5rem; top: .5rem; }
+.dlh { font-size: 1.6rem; font-weight: 700; padding: 1.5rem var(--pad) .5rem; }
+.dllist { padding: 0 var(--pad) 3rem; display: grid; gap: .8rem; }
+.dlrow { display: grid; grid-template-columns: 1fr auto 14rem 4rem; gap: 1.2rem; align-items: center; font-size: 1.15rem; }
+.dlrow span, .dlrow em { color: var(--mut); font-style: normal; }
+.dlbar { height: .5rem; background: rgba(255,255,255,.15); border-radius: .3rem; overflow: hidden; }
+.dlbar i { display: block; height: 100%; background: var(--fg); }

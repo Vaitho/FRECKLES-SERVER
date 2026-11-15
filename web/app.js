@@ -212,7 +212,7 @@ function back() {
 
 function nav(cur) {
   const b = (k, label, extra = '') => `<div class="navb f${cur === k ? ' cur' : ''}${extra}" data-key="nav:${k}" data-act="nav" data-arg="${k}" data-top>${label}</div>`;
-  return `<nav class="top"><div class="logo">Freckles<span>Night</span></div>${b('home', 'Home')}${b('movies', 'Film')}${b('series', 'Serie TV')}${b('rescan', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Aggiorna', ' end')}</nav>`;
+  return `<nav class="top"><div class="logo">Freckles<span>Night</span></div>${b('home', 'Home')}${b('movies', 'Film')}${b('series', 'Serie TV')}${b('dl', 'Scarica')}${b('rescan', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Aggiorna', ' end')}</nav>`;
 }
 function row(title, cards, key) {
   return cards ? `<section class="row" data-row="${key}"><h2>${esc(title)}</h2><div class="track">${cards}</div></section>` : '';
@@ -248,11 +248,11 @@ function metaLine(it, quality) {
 function playLabel(it) {
   if (it.kind === 'movie') {
     const v = chosenVersion(it);
-    return resumable(v.id) ? { text: '▶ Riprendi da ' + fmt(P(v.id).pos), file: v.id, pos: P(v.id).pos } : { text: '▶ Riproduci', file: v.id, pos: 0 };
+    return resumable(v.id) ? { text: 'Riprendi da ' + fmt(P(v.id).pos), file: v.id, pos: P(v.id).pos } : { text: 'Riproduci', file: v.id, pos: 0 };
   }
   const tg = seriesTarget(it);
   const what = epLabel(tg.ep);
-  const text = tg.resume ? `▶ Riprendi ${what}` : tg.next ? `▶ Prossimo: ${what}` : tg.done ? '↺ Riguarda da capo' : `▶ Riproduci ${what}`;
+  const text = tg.resume ? `Riprendi ${what}` : tg.next ? `Prossimo: ${what}` : tg.done ? 'Riguarda da capo' : `Riproduci ${what}`;
   return { text, file: tg.ep.id, pos: tg.pos };
 }
 
@@ -318,12 +318,13 @@ SCREENS.detail = ({ id }) => {
       <div class="actions">
         <div class="btn primary f" data-key="d:play" data-act="play" data-arg="${pl.file}" data-pos="${pl.pos}" data-default data-top>${esc(pl.text)}</div>
         ${extraButtons}
+        <div class="btn danger f${S.confirmDel === it.id ? ' armed' : ''}" data-key="d:del" data-act="del" data-arg="${it.id}" data-top>${S.confirmDel === it.id ? 'Premi OK per confermare' : 'Elimina'}</div>
       </div>`;
 
   if (it.kind === 'movie') {
     const v = chosenVersion(it);
-    const extra = (pl.pos ? `<div class="btn f" data-key="d:restart" data-act="play" data-arg="${v.id}" data-pos="0" data-top>↺ Dall'inizio</div>` : '') +
-      `<div class="btn f" data-key="d:watched" data-act="toggleWatched" data-arg="${it.id}" data-top>${isWatched(it) ? '✓ Visto' : 'Segna come visto'}</div>`;
+    const extra = (pl.pos ? `<div class="btn f" data-key="d:restart" data-act="play" data-arg="${v.id}" data-pos="0" data-top>Dall'inizio</div>` : '') +
+      `<div class="btn f" data-key="d:watched" data-act="toggleWatched" data-arg="${it.id}" data-top>${isWatched(it) ? 'Visto' : 'Segna come visto'}</div>`;
     const versions = it.versions.length > 1
       ? `<div class="chips" data-row="ver"><span>Versione</span>${it.versions.map(x => `<div class="chip f${x.id === v.id ? ' sel' : ''}" data-key="v:${x.id}" data-act="version" data-arg="${it.id}|${x.id}" data-top>${esc(x.label)} · ${(x.size / 1e9).toFixed(1)} GB</div>`).join('')}</div>`
       : '';
@@ -355,6 +356,7 @@ const ACTIONS = {
   nav(k) {
     if (k === 'rescan') return ACTIONS.rescan();
     S.stack = [];
+    if (k === 'dl') return openDl();
     show(k === 'home' ? 'home' : 'grid', { kind: k });
   },
   async rescan() {
@@ -362,6 +364,18 @@ const ACTIONS = {
     try { await api('/api/rescan'); await load(); rerender(); toast('Libreria aggiornata'); } catch { toast('Il PC non risponde'); }
   },
   detail(id) { go('detail', { id }); },
+  async del(id) {
+    if (S.confirmDel !== id) {
+      S.confirmDel = id; rerender('d:del');
+      clearTimeout(S.confirmT); S.confirmT = setTimeout(() => { if (S.confirmDel === id) { S.confirmDel = null; if (S.screen && S.screen.name === 'detail') rerender('d:del'); } }, 6000);
+      return;
+    }
+    S.confirmDel = null; toast('Elimino dal PC…', 30000);
+    try {
+      await api('/api/delete', { id });
+      await load(); S.stack = []; show('home'); toast('Eliminato');
+    } catch { toast('Eliminazione non riuscita'); rerender('d:del'); }
+  },
   play(file, el) { startPlayer(file, +(el && el.dataset.pos) || 0); },
   version(arg) { const [id, file] = arg.split('|'); S.pref[id] = file; rerender('v:' + file); },
   season(arg) { const [id, n] = arg.split('|'); S.season[id] = +n; rerender('s:' + n); },
@@ -376,6 +390,74 @@ const ACTIONS = {
   },
 };
 function activate(el) { const fn = ACTIONS[el.dataset.act]; if (fn) fn(el.dataset.arg, el); }
+
+
+// ---------- scheda Scarica (ricerca su Radarr/Sonarr) ----------
+S.dl = { kind: 'movie', q: '', results: null, queue: [], busy: false, err: '' };
+const DL_STATUS = { downloading: 'In download', importPending: 'In importazione', importing: 'In importazione', paused: 'In pausa', queued: 'In coda' };
+function dlCard(r, i) {
+  const tag = r.hasFile ? 'Già in libreria' : r.added ? 'Richiesto' : '';
+  return `<div class="card f" data-key="r:${i}" data-act="dlAdd" data-arg="${i}">
+    ${art(r.title, r.poster, 'poster')}
+    ${tag ? `<div class="ok tagd">${tag}</div>` : ''}
+    <div class="cap"><b>${esc(r.title)}</b>${r.year || ''}${r.seasons ? ' · ' + r.seasons + ' stag.' : ''}</div>
+  </div>`;
+}
+SCREENS.dl = () => {
+  const d = S.dl;
+  const res = d.busy ? '<div class="splash small"><div class="spinner"></div></div>'
+    : d.err ? `<p class="dlmsg">${esc(d.err)}</p>`
+    : d.results == null ? '<p class="dlmsg">Scrivi il titolo e premi OK sulla tastiera per cercare.</p>'
+    : !d.results.length ? '<p class="dlmsg">Nessun risultato.</p>'
+    : `<div class="grid">${d.results.map(dlCard).join('')}</div>`;
+  const q = d.queue.map(x => `<div class="dlrow"><b>${esc(x.title)}</b><span>${esc(DL_STATUS[x.status] || x.status || '')}${x.eta && x.pct < 100 ? ' · ' + esc(x.eta.replace(/^00:/, '').replace(/^(\d+)\.(\d+):(\d+).*/, '$1 g $2 h')) : ''}</span><div class="dlbar"><i style="width:${x.pct}%"></i></div><em>${x.pct}%</em></div>`).join('');
+  return `<div class="screen">${nav('dl')}
+    <h1 class="page-title">Scarica</h1>
+    <div class="chips dlbar0" data-row="dlk">
+      <div class="chip f${d.kind === 'movie' ? ' sel' : ''}" data-key="dl:movie" data-act="dlKind" data-arg="movie" data-top>Film</div>
+      <div class="chip f${d.kind === 'series' ? ' sel' : ''}" data-key="dl:series" data-act="dlKind" data-arg="series">Serie TV</div>
+      <input id="dlq" class="dlinput f" data-key="dl:q" data-act="dlFocus" type="text" placeholder="Cerca ${d.kind === 'movie' ? 'un film' : 'una serie'}…" value="${esc(d.q)}" autocomplete="off" spellcheck="false">
+    </div>
+    ${res}
+    ${q ? `<h2 class="dlh">In download</h2><div class="dllist">${q}</div>` : ''}
+  </div>`;
+};
+async function refreshQueue() {
+  try { S.dl.queue = await fetch('/api/dl/queue').then(r => r.json()); } catch { return; }
+  if (S.screen && S.screen.name === 'dl' && !S.dl.busy && document.activeElement.tagName !== 'INPUT') rerender();
+}
+function openDl() { S.dl.err = ''; show('dl', {}, 'dl:q'); refreshQueue(); }
+async function dlSearch() {
+  const q = $('#dlq').value.trim();
+  S.dl.q = q;
+  if (q.length < 2) return;
+  S.dl.busy = true; S.dl.err = ''; rerender('dl:q');
+  try {
+    const r = await fetch('/api/dl/search?kind=' + S.dl.kind + '&q=' + encodeURIComponent(q)).then(r => r.json());
+    if (r.error) throw new Error(r.error);
+    S.dl.results = r;
+  } catch (e) { S.dl.results = null; S.dl.err = 'Ricerca non riuscita: ' + e.message; }
+  S.dl.busy = false;
+  rerender(S.dl.results && S.dl.results.length ? 'r:0' : 'dl:q');
+}
+Object.assign(ACTIONS, {
+  dlKind(k) { if (S.dl.kind !== k) { S.dl.kind = k; S.dl.results = null; S.dl.err = ''; } rerender('dl:' + k); },
+  dlFocus() { const i = $('#dlq'); i.focus(); try { i.setSelectionRange(i.value.length, i.value.length); } catch {} },
+  async dlAdd(i) {
+    const r = S.dl.results[+i];
+    if (!r || r.added) return toast(r && r.hasFile ? 'È già in libreria' : 'È già stato richiesto');
+    toast('Aggiungo «' + r.title + '»…', 10000);
+    try {
+      const x = await api('/api/dl/add', { kind: r.kind, key: r.key });
+      if (x.error) throw new Error(x.error);
+      r.added = true;
+      toast('Richiesto: ' + r.title + '. Cerco il download…', 4000);
+      refreshQueue(); setTimeout(refreshQueue, 8000);
+      rerender('r:' + i);
+    } catch (e) { toast('Non riuscito: ' + e.message, 5000); }
+  },
+});
+setInterval(() => { if (S.screen && S.screen.name === 'dl') refreshQueue(); }, 15000);
 
 // ---------- lettore ----------
 
@@ -395,11 +477,11 @@ function startPlayer(file, pos) {
       <div class="bottom">
         <div class="pbar"><div class="buf"></div><div class="fill"></div><div class="knob"></div></div>
         <div class="times"><span class="tcur">0:00</span><span class="tend"></span></div>
-        <div class="hints"><span>OK pausa</span><span>◀ ▶ salta</span><span>▲ audio e sottotitoli</span><span>Indietro esci</span></div>
+        <div class="hints"><span>OK pausa</span><span>Frecce: salta</span><span>Su: audio e sottotitoli</span><span>Indietro esci</span></div>
       </div>
     </div>
     <div class="subtitle"></div>
-    ${ep ? '<div class="btn on nextbtn">Prossimo episodio ▶</div>' : ''}
+    ${ep ? '<div class="btn on nextbtn">Prossimo episodio</div>' : ''}
     <div class="layer"></div>
   </div>`;
   const v = $('#v');
@@ -636,7 +718,7 @@ function onEnded() {
   let n = 10;
   p.panel = { kind: 'next', file: nx.id };
   const draw = () => {
-    $('.layer').innerHTML = `<div class="panel nextup"><h3>Prossimo episodio tra ${n}</h3><b>${epLabel(nx)}${nx.title ? ' · ' + esc(nx.title) : ''}</b><p>OK per iniziare subito, Indietro per uscire</p><div class="btn on">▶ Riproduci</div></div>`;
+    $('.layer').innerHTML = `<div class="panel nextup"><h3>Prossimo episodio tra ${n}</h3><b>${epLabel(nx)}${nx.title ? ' · ' + esc(nx.title) : ''}</b><p>OK per iniziare subito, Indietro per uscire</p><div class="btn on">Riproduci</div></div>`;
   };
   draw();
   p.countdown = setInterval(() => { n--; if (n <= 0) startPlayer(nx.id, 0); else draw(); }, 1000);
@@ -675,6 +757,13 @@ function playerKey(k) {
 // ---------- tasti ----------
 const KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 461: 'back', 27: 'back', 8: 'back', 415: 'play', 19: 'pause', 413: 'stop', 417: 'ff', 412: 'rw', 179: 'playpause', 32: 'playpause' };
 document.addEventListener('keydown', e => {
+  const ae = document.activeElement;
+  if (ae && ae.tagName === 'INPUT') {
+    // tastiera attiva: Invio cerca, Indietro la chiude; il resto va al campo di testo
+    if (e.keyCode === 13) { e.preventDefault(); ae.blur(); dlSearch(); }
+    else if (e.keyCode === 461 || e.keyCode === 27) { e.preventDefault(); ae.blur(); }
+    return;
+  }
   const k = KEYS[e.keyCode];
   if (!k) return;
   e.preventDefault();
