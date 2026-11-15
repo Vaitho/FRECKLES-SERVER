@@ -594,6 +594,7 @@ const server = http.createServer(async (req, res) => {
       try {
         if (p === '/api/dl/search') return json(res, await downloads.search((sp.get('q') || '').trim(), kind));
         if (p === '/api/dl/queue') return json(res, await downloads.queue());
+        if (p === '/api/dl/cancel' && req.method === 'POST') { const b = await readBody(req); return json(res, await downloads.cancel(b.kind === 'series' ? 'series' : 'movie', b.id)); }
         if (p === '/api/dl/add' && req.method === 'POST') { const b = await readBody(req); return json(res, await downloads.add(b.kind === 'series' ? 'series' : 'movie', b.key)); }
       } catch (e) { return json(res, { error: e.message }, 502); }
       return end(res, 404);

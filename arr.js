@@ -99,12 +99,29 @@ module.exports = function arr(config) {
           const size = r.size || 0;
           const base = kind === 'movie' ? (r.movie && r.movie.title) : (r.series && r.series.title);
           const ep = kind === 'series' && r.episode ? ` S${r.episode.seasonNumber}E${r.episode.episodeNumber}` : '';
-          out.push({ kind, title: (base || r.title) + ep, pct: size ? Math.round((1 - (r.sizeleft || 0) / size) * 100) : 0, status: r.trackedDownloadState || r.status, eta: r.timeleft || '' });
+          out.push({ kind, id: r.id, title: (base || r.title) + ep, pct: size ? Math.round((1 - (r.sizeleft || 0) / size) * 100) : 0, status: r.trackedDownloadState || r.status, eta: r.timeleft || '' });
         }
       } catch { /* app spenta: ignoro */ }
     }
     return out;
   }
 
-  return { search, add, queue };
+  // Annulla uno scaricamento: lo toglie dalla coda e dal client che lo sta scaricando.
+  // Da solo non basta, perché Radarr/Sonarr lo cercherebbero di nuovo: il film che non ha ancora un file esce da Radarr
+  // (così si può richiedere più avanti), l'episodio smette di essere seguito.
+  async function cancel(kind, id) {
+    id = +id;
+    const q = await call(kind, '/queue?pageSize=200');
+    const r = (q.records || []).find(x => x.id === id);
+    if (!r) throw new Error('scaricamento non più in coda');
+    await call(kind, `/queue/${id}?removeFromClient=true&blocklist=false`, { method: 'DELETE' });
+    if (kind === 'movie' && r.movieId) {
+      const m = await call(kind, '/movie/' + r.movieId);
+      if (!m.hasFile) await call(kind, `/movie/${r.movieId}?deleteFiles=false&addImportExclusion=false`, { method: 'DELETE' });
+    }
+    if (kind === 'series' && r.episodeId) await call(kind, '/episode/monitor', { method: 'PUT', body: { episodeIds: [r.episodeId], monitored: false } });
+    return { ok: true };
+  }
+
+  return { search, add, queue, cancel };
 };
