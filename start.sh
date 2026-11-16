@@ -4,8 +4,8 @@
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 export PATH="$HOME/.local/bin:$PATH" # node e ffmpeg sono installati qui
 
-# I dischi con Film e SerataTeleFilm: il volume NTFS da 800 GB e quello ext4 da 500 GB
-DISKS="FC1401DB140199B2 7cfdaac5-7183-4e92-894a-cc3ea48105bf"
+# I dischi con Film e SerataTeleFilm: NTFS da 800 GB, ext4 da 500 GB (video) e ext4 da 500 GB (archivio2)
+DISKS="FC1401DB140199B2 7cfdaac5-7183-4e92-894a-cc3ea48105bf 1ce20858-61a5-49e5-9f30-71179cfdbb33"
 
 mounted() { findmnt -rn -S "UUID=$1" >/dev/null; }
 

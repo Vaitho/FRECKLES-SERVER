@@ -197,13 +197,15 @@ async function scan() {
 
 // ---------- eliminazione dal disco ----------
 async function removeItem(id) {
-  const ids = [];
+  const ids = [], gone = [];
+  const kind = seriesDirs.has(id) ? 'series' : 'movie';
   if (seriesDirs.has(id)) {
     const dir = seriesDirs.get(id);
     if (!config.series.some(r => path.resolve(r) === path.dirname(path.resolve(dir)))) throw new Error('cartella non valida');
     const s = lib.series.find(x => x.id === id);
     for (const se of s.seasons) for (const ep of se.episodes) ids.push(ep.id);
     await fsp.rm(dir, { recursive: true, force: true });
+    gone.push(path.basename(dir));
   } else {
     const m = lib.movies.find(x => x.id === id);
     if (!m) throw new Error('titolo sconosciuto');
@@ -216,11 +218,12 @@ async function removeItem(id) {
         if (n === path.basename(f.path) || (n.startsWith(base + '.') && !VIDEO.has(path.extname(n).toLowerCase()))) await fsp.rm(path.join(dir, n), { force: true });
       }
       // film in una cartella propria: se non resta nessun video, via anche la cartella
-      if (!config.movies.some(r => path.resolve(r) === path.resolve(dir)) && !(await walk(dir)).length) await fsp.rm(dir, { recursive: true, force: true });
+      if (!config.movies.some(r => path.resolve(r) === path.resolve(dir)) && !(await walk(dir)).length) { await fsp.rm(dir, { recursive: true, force: true }); gone.push(path.basename(dir)); }
     }
   }
   for (const f of ids) { delete progress[f]; fs.rmSync(thumbPath(f), { force: true }); }
   save('progress.json');
+  await downloads.forget(kind, gone);
   await rescan();
 }
 

@@ -123,5 +123,18 @@ module.exports = function arr(config) {
     return { ok: true };
   }
 
-  return { search, add, queue, cancel };
+  // Dopo un'eliminazione dal disco: il titolo esce anche da Radarr/Sonarr, altrimenti lo riscaricherebbero.
+  // Lo riconosco dal nome della cartella, che è lo stesso dentro e fuori dai container. App spenta: ignoro.
+  async function forget(kind, folders) {
+    if (!folders.length) return;
+    const names = new Set(folders), what = kind === 'movie' ? '/movie' : '/series';
+    try {
+      for (const it of await call(kind, what, { timeout: 8000 })) {
+        if (!names.has(path.posix.basename(it.path || ''))) continue;
+        await call(kind, `${what}/${it.id}?deleteFiles=false&addImportExclusion=false`, { method: 'DELETE' });
+      }
+    } catch { /* la cancellazione dal disco è già fatta */ }
+  }
+
+  return { search, add, queue, cancel, forget };
 };
