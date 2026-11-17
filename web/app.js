@@ -212,7 +212,7 @@ function back() {
 
 function nav(cur) {
   const b = (k, label, extra = '') => `<div class="navb f${cur === k ? ' cur' : ''}${extra}" data-key="nav:${k}" data-act="nav" data-arg="${k}" data-top>${label}</div>`;
-  return `<nav class="top"><div class="logo">Freckles<span>Night</span></div>${b('home', 'Home')}${b('movies', 'Film')}${b('series', 'Serie TV')}${b('dl', 'Scarica')}${b('rescan', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Aggiorna', ' end')}</nav>`;
+  return `<nav class="top"><div class="logo">Freckles<span>Night</span></div>${b('home', 'Home')}${b('movies', 'Film')}${b('series', 'Serie TV')}${b('dl', 'Scarica')}${b('search', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M16.5 16.5 21 21" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>Cerca', ' end')}${b('rescan', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Aggiorna')}</nav>`;
 }
 function row(title, cards, key) {
   return cards ? `<section class="row" data-row="${key}"><h2>${esc(title)}</h2><div class="track">${cards}</div></section>` : '';
@@ -304,6 +304,26 @@ SCREENS.grid = ({ kind }) => {
   </div>`;
 };
 
+// ---------- ricerca nella libreria ----------
+S.q = '';
+const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); // "Amélie" = "amelie"
+function searchResults() {
+  const words = fold(S.q).split(/\s+/).filter(Boolean);
+  if (!words.length) return '<p class="dlmsg">Scrivi il titolo di un film o di una serie.</p>';
+  const hits = byTitle(S.lib.movies.concat(S.lib.series)).filter(i => { const t = fold(i.title); return words.every(w => t.includes(w)); });
+  return hits.length ? `<div class="grid">${hits.map(i => posterCard(i, 'q')).join('')}</div>` : '<p class="dlmsg">Nessun risultato.</p>';
+}
+SCREENS.search = () => `<div class="screen">${nav('search')}
+  <h1 class="page-title">Cerca</h1>
+  <div class="chips dlbar0"><input id="sq" class="dlinput f" data-key="sq" data-act="sqFocus" data-top type="text" placeholder="Cerca un film o una serie…" value="${esc(S.q)}" autocomplete="off" spellcheck="false"></div>
+  <div id="sres">${searchResults()}</div>
+</div>`;
+document.addEventListener('input', e => {
+  if (e.target.id !== 'sq') return;
+  S.q = e.target.value;
+  $('#sres').innerHTML = searchResults();
+});
+
 SCREENS.detail = ({ id }) => {
   const it = S.byId.get(id);
   if (!it) return `<div class="screen"><div class="splash"><p>Titolo non trovato.</p></div></div>`;
@@ -357,6 +377,7 @@ const ACTIONS = {
     if (k === 'rescan') return ACTIONS.rescan();
     S.stack = [];
     if (k === 'dl') return openDl();
+    if (k === 'search') return show('search', {}, 'sq');
     show(k === 'home' ? 'home' : 'grid', { kind: k });
   },
   async rescan() {
@@ -364,6 +385,7 @@ const ACTIONS = {
     try { await api('/api/rescan'); await load(); rerender(); toast('Libreria aggiornata'); } catch { toast('Il PC non risponde'); }
   },
   detail(id) { go('detail', { id }); },
+  sqFocus() { const i = $('#sq'); i.focus(); try { i.setSelectionRange(i.value.length, i.value.length); } catch {} },
   async del(id) {
     if (S.confirmDel !== id) {
       S.confirmDel = id; rerender('d:del');
@@ -760,7 +782,11 @@ document.addEventListener('keydown', e => {
   const ae = document.activeElement;
   if (ae && ae.tagName === 'INPUT') {
     // tastiera attiva: Invio cerca, Indietro la chiude; il resto va al campo di testo
-    if (e.keyCode === 13) { e.preventDefault(); ae.blur(); dlSearch(); }
+    if (e.keyCode === 13) {
+      e.preventDefault(); ae.blur();
+      if (ae.id === 'sq') focus($('#sres .f') || ae); // Invio: porta il cursore sul primo risultato
+      else dlSearch();
+    }
     else if (e.keyCode === 461 || e.keyCode === 27) { e.preventDefault(); ae.blur(); }
     return;
   }
